@@ -1,0 +1,278 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: brainmind_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: brainmind
+      POSTGRES_USER: brainmind
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brainmind_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brainmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: brainmind_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: brainmind_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__LOG_LEVEL: INFO
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: brainmind_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # GPU NVIDIA (descomenta si dispones de ella):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: brainmind_ollama_init
+    restart: "no"
+    profiles: ["init"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        OLLAMA_HOST=http://ollama:11434 ollama pull mistral:7b &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text &&
+        echo 'Modelos OK'
+      "
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # ── Jitsi Meet — videollamada self-hosted, gratuita ──────────────────────────
+  jitsi:
+    image: jitsi/web:stable-9111
+    container_name: brainmind_jitsi
+    restart: unless-stopped
+    ports:
+      - "8443:80"
+    volumes:
+      - jitsi_web_config:/config
+      - jitsi_web_transcripts:/usr/share/jitsi-meet/transcripts
+    environment:
+      - PUBLIC_URL=http://localhost:8443
+      - ENABLE_GUESTS=1
+      - ENABLE_AUTH=0
+      - DISABLE_HTTPS=1
+      - JICOFO_AUTH_USER=focus
+      - XMPP_SERVER=prosody
+      - XMPP_BOSH_URL_BASE=http://prosody:5280
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_GUEST_DOMAIN=guest.meet.jitsi
+      - TZ=Europe/Madrid
+    depends_on:
+      - prosody
+    networks:
+      - meet.jitsi
+      - default
+
+  prosody:
+    image: jitsi/prosody:stable-9111
+    container_name: brainmind_prosody
+    restart: unless-stopped
+    expose:
+      - "5222"
+      - "5280"
+      - "5347"
+    volumes:
+      - jitsi_prosody_config:/config
+      - jitsi_prosody_plugins:/prosody-plugins-custom
+    environment:
+      - AUTH_TYPE=internal
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - GLOBAL_MODULES=statistics,alert
+      - GLOBAL_CONFIG=statistics_interval=30
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_GUEST_DOMAIN=guest.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_MUC_MODULES=
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo_dev_password}
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb_dev_password}
+      - TZ=Europe/Madrid
+    networks:
+      meet.jitsi:
+        aliases:
+          - meet.jitsi
+          - auth.meet.jitsi
+          - guest.meet.jitsi
+          - muc.meet.jitsi
+          - internal-muc.meet.jitsi
+
+  jicofo:
+    image: jitsi/jicofo:stable-9111
+    container_name: brainmind_jicofo
+    restart: unless-stopped
+    volumes:
+      - jitsi_jicofo_config:/config
+    environment:
+      - AUTH_TYPE=internal
+      - ENABLE_AUTH=0
+      - XMPP_SERVER=prosody
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo_dev_password}
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb_dev_password}
+      - TZ=Europe/Madrid
+    depends_on:
+      - prosody
+    networks:
+      - meet.jitsi
+
+  jvb:
+    image: jitsi/jvb:stable-9111
+    container_name: brainmind_jvb
+    restart: unless-stopped
+    ports:
+      - "10000:10000/udp"
+      - "4443:4443"
+    volumes:
+      - jitsi_jvb_config:/config
+    environment:
+      - DOCKER_HOST_ADDRESS=${DOCKER_HOST_ADDRESS:-127.0.0.1}
+      - XMPP_SERVER=prosody
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb_dev_password}
+      - JVB_BREWERY_MUC=jvbbrewery
+      - JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443
+      - TZ=Europe/Madrid
+    depends_on:
+      - prosody
+    networks:
+      - meet.jitsi
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: brainmind_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://brainmind:${POSTGRES_PASSWORD:-brainmind_dev_password}@postgres:5432/brainmind
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production_min_32_chars}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-mistral:7b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      WHISPER_MODE: ${WHISPER_MODE:-mock}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-medium}
+      QDRANT_URL: http://qdrant:6333
+      JITSI_BASE_URL: ${JITSI_BASE_URL:-http://localhost:8443}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      FRONTEND_URL: http://localhost:3000
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: brainmind_web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_JITSI_BASE_URL: ${JITSI_BASE_URL:-http://localhost:8443}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  ollama_data:
+  uploads_data:
+  jitsi_web_config:
+  jitsi_web_transcripts:
+  jitsi_prosody_config:
+  jitsi_prosody_plugins:
+  jitsi_jicofo_config:
+  jitsi_jvb_config:
+
+networks:
+  meet.jitsi:
+  default:
+    name: brainmind_default
