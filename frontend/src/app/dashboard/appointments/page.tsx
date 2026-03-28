@@ -47,25 +47,26 @@ export default function AppointmentsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="page-header flex items-start justify-between">
         <div>
-          <h1 className="text-2xl text-gray-900" style={{ fontFamily: 'var(--font-serif)' }}>
+          <h1 className="page-title" style={{ fontFamily: 'var(--font-serif)' }}>
             {role === 'psychologist' ? 'Agenda' : 'Mis citas'}
           </h1>
-          <p className="text-gray-500 text-sm mt-1">{appointments.length} citas en total</p>
+          <p className="page-subtitle">{appointments.length} citas en total</p>
         </div>
         {role === 'patient' && (
           <button onClick={() => setShowNewModal(true)} className="btn-primary flex items-center gap-2">
-            <Plus size={14} /> Nueva cita
+            <Plus size={18} /> Nueva cita
           </button>
         )}
       </div>
 
-      <div className="flex gap-2 mb-6">
+      {/* Filtros */}
+      <div className="flex gap-2 mb-8 flex-wrap">
         {[['', 'Todas'], ['pending', 'Pendientes'], ['confirmed', 'Confirmadas'], ['completed', 'Completadas']].map(([val, label]) => (
           <button key={val} onClick={() => setFilter(val)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              filter === val ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+            className={`px-5 py-2.5 rounded-2xl text-base font-semibold transition-all ${
+              filter === val ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
             }`}>
             {label}
           </button>
@@ -73,18 +74,18 @@ export default function AppointmentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-gray-400">Cargando...</div>
+        <div className="text-center py-20 text-gray-400 text-lg">Cargando...</div>
       ) : appointments.length === 0 ? (
-        <div className="card p-16 text-center">
-          <Calendar size={40} className="text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No hay citas que mostrar</p>
+        <div className="card p-20 text-center">
+          <Calendar size={56} className="text-gray-200 mx-auto mb-5" />
+          <p className="text-lg text-gray-500">No hay citas que mostrar</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {upcoming.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Próximas</h2>
-              <div className="space-y-3">
+              <p className="section-title">Próximas</p>
+              <div className="space-y-4">
                 {upcoming.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role}
                     onConfirm={() => confirm.mutate(a.id)}
@@ -95,8 +96,8 @@ export default function AppointmentsPage() {
           )}
           {past.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Historial</h2>
-              <div className="space-y-3">
+              <p className="section-title">Historial</p>
+              <div className="space-y-4">
                 {past.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role} past />
                 ))}
@@ -123,84 +124,70 @@ function AppointmentCard({ appointment: a, role, onConfirm, onCancel, past }: an
     onSuccess: () => qc.invalidateQueries({ queryKey: ['appointments'] }),
   })
 
-  const isNow = a.status === 'confirmed' &&
-    Math.abs(new Date(a.scheduled_at).getTime() - Date.now()) < 2 * 60 * 60 * 1000
-
   return (
-    <div className={`card p-4 flex gap-4 ${past ? 'opacity-70' : ''}`}>
-      <div className="w-14 text-center flex-shrink-0">
-        <div className="bg-brand-50 rounded-xl p-2">
-          <p className="text-xs text-brand-500 font-medium uppercase">
+    <div className={`card p-6 flex gap-5 ${past ? 'opacity-60' : ''}`}>
+      {/* Date block */}
+      <div className="w-16 text-center flex-shrink-0">
+        <div className="bg-brand-50 rounded-2xl p-3">
+          <p className="text-sm text-brand-500 font-bold uppercase">
             {new Date(a.scheduled_at).toLocaleDateString('es-ES', { month: 'short' })}
           </p>
-          <p className="text-2xl font-semibold text-brand-700 leading-none">
+          <p className="text-3xl font-bold text-brand-700 leading-none mt-0.5">
             {new Date(a.scheduled_at).getDate()}
           </p>
         </div>
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
-            <Clock size={13} className="text-gray-400" />
-            <span className="text-sm font-medium text-gray-900">
-              {formatTime(a.scheduled_at)} · {a.duration_min} min
+            <Clock size={16} className="text-gray-400" />
+            <span className="text-lg font-semibold text-gray-900">
+              {formatTime(a.scheduled_at)}
             </span>
+            <span className="text-base text-gray-500">· {a.duration_min} min</span>
           </div>
-          <span className={`badge text-xs ${STATUS_STYLE[a.status] || 'bg-gray-100 text-gray-600'}`}>
+          <span className={`badge text-sm ${STATUS_STYLE[a.status] || 'bg-gray-100 text-gray-600'}`}>
             {STATUS_LABEL[a.status] || a.status}
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          {/* Entrar a la sala de vídeo */}
+        <div className="flex flex-wrap items-center gap-2">
           {a.video_room_url && a.status === 'confirmed' && (
-            <button
-              onClick={() => router.push(`/dashboard/video/${a.id}`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-medium hover:bg-brand-700">
-              <Video size={12} /> Entrar a la sesión
+            <button onClick={() => router.push(`/dashboard/video/${a.id}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">
+              <Video size={15} /> Entrar a la sesión
             </button>
           )}
-
-          {/* Confirmar (psicólogo, pendiente) */}
           {role === 'psychologist' && a.status === 'pending' && (
             <button onClick={onConfirm}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700">
-              <Check size={12} /> Confirmar
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700">
+              <Check size={15} /> Confirmar
             </button>
           )}
-
-          {/* Finalizar sesión (psicólogo, confirmed, ≤2h de margen) */}
           {role === 'psychologist' && a.status === 'confirmed' && (
-            <button onClick={() => complete.mutate()}
-              disabled={complete.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700">
-              <CheckCircle size={12} />
+            <button onClick={() => complete.mutate()} disabled={complete.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+              <CheckCircle size={15} />
               {complete.isPending ? 'Finalizando...' : 'Finalizar sesión'}
             </button>
           )}
-
-          {/* Cancelar */}
           {a.status !== 'cancelled' && a.status !== 'completed' && !past && (
             <button onClick={onCancel}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50">
-              <X size={12} /> Cancelar
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">
+              <X size={15} /> Cancelar
             </button>
           )}
-
-          {/* Resumen IA (psicólogo, completed) */}
           {a.status === 'completed' && role === 'psychologist' && (
             <button onClick={() => router.push(`/dashboard/session/${a.id}`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700">
-              <Brain size={12} /> Resumen IA
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700">
+              <Brain size={15} /> Resumen IA
             </button>
           )}
-
-          {/* Ejercicios (paciente, completed) */}
           {a.status === 'completed' && role === 'patient' && (
             <button onClick={() => router.push(`/dashboard/exercises/${a.id}`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700">
-              <Dumbbell size={12} /> Mis ejercicios
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700">
+              <Dumbbell size={15} /> Mis ejercicios
             </button>
           )}
         </div>
@@ -241,13 +228,13 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-semibold text-gray-900">Nueva cita</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Nueva cita</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={22} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl border border-red-200">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {error && <div className="bg-red-50 text-red-700 text-base px-4 py-3 rounded-2xl border border-red-200">{error}</div>}
           <div>
             <label className="label">Psicólogo</label>
             <select className="input" value={matchId} onChange={e => setMatchId(e.target.value)} required>
@@ -257,7 +244,7 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Fecha</label>
               <input type="date" className="input" value={date} onChange={e => setDate(e.target.value)}

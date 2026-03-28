@@ -25,29 +25,28 @@ export default function PatientsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl text-gray-900" style={{ fontFamily: 'var(--font-serif)' }}>Pacientes</h1>
-        <p className="text-gray-500 text-sm mt-1">
+      <div className="page-header">
+        <h1 className="page-title" style={{ fontFamily: 'var(--font-serif)' }}>Pacientes</h1>
+        <p className="page-subtitle">
           {accepted.length} activo{accepted.length !== 1 ? 's' : ''}
-          {pending.length > 0 && ` · ${pending.length} pendiente${pending.length !== 1 ? 's' : ''}`}
+          {pending.length > 0 && ` · ${pending.length} solicitud${pending.length !== 1 ? 'es' : ''} pendiente${pending.length !== 1 ? 's' : ''}`}
         </p>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-gray-400">Cargando...</div>
+        <div className="text-center py-20 text-gray-400 text-lg">Cargando...</div>
       ) : matches.length === 0 ? (
-        <div className="card p-16 text-center">
-          <Users size={40} className="text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">Todavía no tienes solicitudes de pacientes</p>
+        <div className="card p-20 text-center">
+          <Users size={56} className="text-gray-200 mx-auto mb-5" />
+          <p className="text-lg text-gray-500">Todavía no tienes solicitudes de pacientes</p>
+          <p className="text-base text-gray-400 mt-2">Los pacientes te encontrarán a través del sistema de matching</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {pending.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                Solicitudes pendientes ({pending.length})
-              </h2>
-              <div className="space-y-3">
+              <p className="section-title">Solicitudes pendientes ({pending.length})</p>
+              <div className="space-y-4">
                 {pending.map((m: any) => (
                   <PatientCard key={m.id} match={m}
                     onAccept={() => updateStatus.mutate({ id: m.id, status: 'accepted' })}
@@ -58,10 +57,8 @@ export default function PatientsPage() {
           )}
           {accepted.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                Pacientes activos ({accepted.length})
-              </h2>
-              <div className="space-y-3">
+              <p className="section-title">Pacientes activos ({accepted.length})</p>
+              <div className="space-y-4">
                 {accepted.map((m: any) => (
                   <PatientCard key={m.id} match={m} active />
                 ))}
@@ -77,58 +74,57 @@ export default function PatientsPage() {
 function PatientCard({ match: m, onAccept, onReject, active }: any) {
   const router = useRouter()
   return (
-    <div className="card p-5 flex gap-4">
-      <div className="w-12 h-12 rounded-2xl bg-brand-100 flex items-center justify-center flex-shrink-0 text-brand-700 font-semibold">
+    <div className="card p-6 flex gap-5">
+      <div className="w-14 h-14 rounded-3xl bg-brand-100 flex items-center justify-center flex-shrink-0 text-brand-700 font-bold text-xl">
         {active ? (m.patient_name?.[0] || 'P') : '?'}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 mb-1">
           <div>
-            <p className="font-medium text-gray-900 text-sm">
+            <p className="text-lg font-bold text-gray-900">
               {active ? (m.patient_name || 'Paciente') : 'Paciente anónimo'}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm text-gray-500">
               Solicitud {new Date(m.created_at).toLocaleDateString('es-ES')}
             </p>
           </div>
           {m.compatibility_score && (
-            <span className="badge bg-brand-50 text-brand-700 text-xs flex-shrink-0">
+            <span className="badge bg-brand-50 text-brand-700 text-sm flex-shrink-0">
               {Math.round(m.compatibility_score * 100)}% compatible
             </span>
           )}
         </div>
 
         {m.match_reasons?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3">
             {m.match_reasons.map((r: string) => (
-              <span key={r} className="badge bg-gray-100 text-gray-600 text-xs">{r}</span>
+              <span key={r} className="badge bg-gray-100 text-gray-600 text-sm">{r}</span>
             ))}
           </div>
         )}
 
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-3 mt-4">
           {!active && onAccept && (
             <>
               <button onClick={onAccept}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-medium hover:bg-green-700">
-                <CheckCircle size={13} /> Aceptar
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-green-600 text-white text-base font-semibold hover:bg-green-700">
+                <CheckCircle size={18} /> Aceptar
               </button>
               <button onClick={onReject}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50">
-                <XCircle size={13} /> Rechazar
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-600 text-base font-semibold hover:bg-gray-50">
+                <XCircle size={18} /> Rechazar
               </button>
             </>
           )}
           {active && (
             <>
               <Link href="/dashboard/appointments"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50">
-                <Calendar size={13} /> Ver citas
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-600 text-base font-semibold hover:bg-gray-50">
+                <Calendar size={18} /> Ver citas
               </Link>
-              <button
-                onClick={() => router.push(`/dashboard/history/${m.patient_id}`)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-purple-200 text-purple-600 text-xs font-medium hover:bg-purple-50">
-                <ClipboardList size={13} /> Historial clínico
+              <button onClick={() => router.push(`/dashboard/history/${m.patient_id}`)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-purple-200 text-purple-600 text-base font-semibold hover:bg-purple-50">
+                <ClipboardList size={18} /> Historial clínico
               </button>
             </>
           )}
