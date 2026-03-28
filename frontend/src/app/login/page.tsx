@@ -47,7 +47,15 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-                {error}
+                <p>{error}</p>
+                {error.includes('verifica') && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/verify-email')}
+                    className="mt-2 text-red-600 underline text-xs font-medium">
+                    Reenviar email de verificación →
+                  </button>
+                )}
               </div>
             )}
             <div>

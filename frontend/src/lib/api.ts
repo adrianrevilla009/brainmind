@@ -111,3 +111,22 @@ export const videoApi = {
   complete: (appointmentId: string) =>
     api.patch(`/appointments/${appointmentId}/complete`),
 }
+
+// --- Verificación de email (Iteración 4) ---
+export const verifyEmailApi = {
+  verify: (token: string) => api.get(`/auth/verify-email?token=${token}`),
+  resend: () => api.post('/auth/resend-verification'),
+}
+
+// --- Analytics (Iteración 4) ---
+export const analyticsApi = {
+  myProgress: () => api.get('/analytics/my-progress'),
+  patientAnalytics: (patientId: string) => api.get(`/analytics/patients/${patientId}`),
+}
+
+// --- RGPD (Iteración 4) ---
+export const rgpdApi = {
+  requestExport: () => api.post('/rgpd/my-data'),
+  getRequests: () => api.get('/rgpd/requests'),
+  deleteAccount: () => api.delete('/rgpd/delete-account'),
+}

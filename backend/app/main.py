@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.api.routes import auth, profiles, matches, appointments, payments, ai, notifications
+from app.api.routes import auth, profiles, matches, appointments, payments, ai, notifications, rgpd, analytics
 
 settings = get_settings()
 
@@ -27,17 +27,28 @@ app.include_router(appointments.router, prefix="/api")
 app.include_router(payments.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(rgpd.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api")
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Inicializa colecciones Qdrant al arrancar."""
+    """Inicializa servicios al arrancar."""
+    import asyncio
+    # Qdrant
     try:
         from app.services.qdrant_service import ensure_collection
         await ensure_collection()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Qdrant no disponible en startup: {e}")
+    # Scheduler de recordatorios de email
+    try:
+        from app.services.reminder_service import run_scheduler
+        asyncio.create_task(run_scheduler())
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Scheduler no disponible: {e}")
 
 
 @app.get("/health")

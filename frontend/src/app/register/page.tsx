@@ -26,7 +26,12 @@ function RegisterForm() {
     try {
       const res = await authApi.register({ email, password, role, full_name: fullName })
       setAuth(res.data.access_token, res.data.role, res.data.user_id)
-      router.push('/onboarding')
+      // Si se requiere verificación de email, ir a la página de verificación
+      if (res.data.verification_required) {
+        router.push('/verify-email')
+      } else {
+        router.push('/onboarding')
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al registrar')
     } finally {
