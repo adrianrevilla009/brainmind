@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { profilesApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { SPECIALIZATIONS, APPROACHES, formatPrice } from '@/lib/utils'
-import { Save, LogOut, Shield } from 'lucide-react'
+import { Save, LogOut, Shield, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SettingsPage() {
   const role = useAuthStore((s) => s.role)
@@ -17,28 +18,22 @@ export default function SettingsPage() {
       </div>
       <div className="max-w-2xl space-y-6">
         {role === 'psychologist' ? <PsychologistSettings /> : <PatientSettings />}
-        {/* RGPD / Cuenta */}
+        {/* Privacidad / RGPD */}
         <div className="card p-5">
           <h2 className="font-medium text-gray-900 flex items-center gap-2 mb-4">
             <Shield size={16} className="text-brand-500" />
             Privacidad y cuenta
           </h2>
           <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="text-sm font-medium text-gray-700">Solicitar mis datos (RGPD)</p>
-                <p className="text-xs text-gray-500">Recibe un export de todos tus datos en 30 días</p>
+                <p className="text-sm font-medium text-gray-700">Gestión de privacidad (RGPD)</p>
+                <p className="text-xs text-gray-500">Export de datos, eliminación de cuenta y más</p>
               </div>
-              <button className="btn-secondary text-xs">Solicitar</button>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-gray-100">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Eliminar mi cuenta</p>
-                <p className="text-xs text-gray-500">Borrado permanente de todos tus datos</p>
-              </div>
-              <button className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors">
-                Eliminar
-              </button>
+              <Link href="/dashboard/rgpd"
+                className="flex items-center gap-1.5 text-xs text-brand-600 font-medium hover:underline">
+                Gestionar <ExternalLink size={11} />
+              </Link>
             </div>
             <div className="pt-1">
               <button onClick={logout}
