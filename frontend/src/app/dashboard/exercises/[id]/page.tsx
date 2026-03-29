@@ -16,7 +16,7 @@ export default function ExercisesPage() {
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['exercise-plan', appointmentId],
-    queryFn: () => aiApi.getExercisePlan(appointmentId).then(r => r.data),
+    queryFn: () => aiApi.getExercisePlan(appointmentId).then(r => r.data).catch(() => null),
   })
 
   const acknowledge = useMutation({

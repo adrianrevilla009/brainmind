@@ -74,18 +74,22 @@ export default function AppointmentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-20 text-gray-400 text-lg">Cargando...</div>
+        <div className="space-y-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="skeleton h-28 w-full" style={{ animationDelay: `${i*80}ms` }} />
+          ))}
+        </div>
       ) : appointments.length === 0 ? (
-        <div className="card p-20 text-center">
+        <div className="card p-20 text-center animate-fade-in-up">
           <Calendar size={56} className="text-gray-200 mx-auto mb-5" />
           <p className="text-lg text-gray-500">No hay citas que mostrar</p>
         </div>
       ) : (
         <div className="space-y-8">
           {upcoming.length > 0 && (
-            <section>
+            <section className="animate-fade-in-up">
               <p className="section-title">Próximas</p>
-              <div className="space-y-4">
+              <div className="space-y-4 stagger-children">
                 {upcoming.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role}
                     onConfirm={() => confirm.mutate(a.id)}
@@ -95,9 +99,9 @@ export default function AppointmentsPage() {
             </section>
           )}
           {past.length > 0 && (
-            <section>
+            <section className="animate-fade-in-up">
               <p className="section-title">Historial</p>
-              <div className="space-y-4">
+              <div className="space-y-4 stagger-children">
                 {past.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role} past />
                 ))}
@@ -239,9 +243,17 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
             <label className="label">Psicólogo</label>
             <select className="input" value={matchId} onChange={e => setMatchId(e.target.value)} required>
               <option value="">Selecciona un psicólogo</option>
-              {accepted.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.psychologist?.full_name || 'Psicólogo'}</option>
-              ))}
+              {accepted.map((m: any) => {
+                const p = m.psychologist
+                const name = p?.full_name || 'Psicólogo'
+                const spec = p?.specializations?.[0] || p?.approaches?.[0] || ''
+                const price = p?.session_price_eur ? `· ${(p.session_price_eur / 100).toFixed(0)}€` : ''
+                return (
+                  <option key={m.id} value={m.id}>
+                    {name}{spec ? ` — ${spec}` : ''}{price}
+                  </option>
+                )
+              })}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">

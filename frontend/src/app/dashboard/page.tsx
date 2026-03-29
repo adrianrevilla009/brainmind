@@ -10,10 +10,10 @@ function StatCard({ label, value, sub, color, icon }: {
   label: string; value: string | number; sub?: string; color: string; icon: React.ReactNode
 }) {
   return (
-    <div className="card p-7">
+    <div className="card p-7 card-hover animate-fade-in-up">
       <div className="flex items-start justify-between mb-4">
         <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{label}</p>
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${color.replace('text-', 'bg-').replace('600', '100')}`}>
+        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${color.replace('text-', 'bg-').replace('600', '100').replace('700', '100')}`}>
           {icon}
         </div>
       </div>

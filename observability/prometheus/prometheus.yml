@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    app: brainmind
+
+scrape_configs:
+
+  # ── FastAPI backend (/metrics via prometheus-fastapi-instrumentator) ──────────
+  - job_name: brainmind-api
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: /metrics
+
+  # ── PostgreSQL (via postgres_exporter) ───────────────────────────────────────
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # ── Redis (via redis_exporter) ───────────────────────────────────────────────
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # ── Prometheus self-monitoring ────────────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

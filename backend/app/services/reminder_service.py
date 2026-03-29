@@ -32,7 +32,7 @@ async def schedule_appointment_reminders(
     Crea los recordatorios pendientes al confirmar una cita.
     Se llama desde el endpoint /appointments/{id}/confirm.
     """
-    from app.models.user import AppointmentReminder  # evitar import circular
+    from app.models.user import AppointmentReminder, ReminderStatus  # evitar import circular
 
     scheduled = appointment.scheduled_at
 
@@ -73,7 +73,7 @@ async def schedule_appointment_reminders(
                     user_id=user_id,
                     reminder_type=r["reminder_type"],
                     scheduled_for=r["scheduled_for"],
-                    status="pending",
+                    status=ReminderStatus.pending,
                 )
                 db.add(reminder)
             except Exception:
@@ -97,12 +97,13 @@ async def process_pending_reminders() -> None:
 
     async with async_session_factory() as db:
         try:
+            from app.models.user import ReminderStatus
             now = datetime.now(timezone.utc)
 
             # Buscar recordatorios pendientes cuya hora ya ha llegado
             result = await db.execute(
                 select(AppointmentReminder).where(
-                    AppointmentReminder.status == "pending",
+                    AppointmentReminder.status == ReminderStatus.pending,
                     AppointmentReminder.scheduled_for <= now,
                 ).limit(50)
             )
@@ -111,10 +112,10 @@ async def process_pending_reminders() -> None:
             for reminder in reminders:
                 try:
                     await _send_reminder(db, reminder)
-                    reminder.status = "sent"
+                    reminder.status = ReminderStatus.sent
                     reminder.sent_at = now
                 except Exception as e:
-                    reminder.status = "failed"
+                    reminder.status = ReminderStatus.failed
                     reminder.error_message = str(e)
                     logger.error(f"Error enviando recordatorio {reminder.id}: {e}")
 
@@ -134,7 +135,7 @@ async def _send_reminder(db: AsyncSession, reminder) -> None:
     )
     appt = appt_result.scalar_one_or_none()
     if not appt or appt.status == "cancelled":
-        reminder.status = "cancelled"
+        reminder.status = ReminderStatus.cancelled
         return
 
     # Obtener usuario destinatario

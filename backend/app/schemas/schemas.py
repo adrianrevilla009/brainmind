@@ -1,6 +1,6 @@
 from app.models.user import PreferredFrequency
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 import uuid
 
@@ -115,7 +115,7 @@ class MatchOut(BaseModel):
     match_reasons: list[str]
     initiated_by: str
     created_at: datetime
-    psychologist: Optional[PsychologistProfileOut] = None
+    psychologist: Optional[Any] = None
 
     class Config:
         from_attributes = True

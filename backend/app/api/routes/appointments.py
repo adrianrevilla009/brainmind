@@ -90,7 +90,7 @@ async def get_my_appointments(
 
     if status:
         query = query.where(Appointment.status == status)
-    query = query.order_by(Appointment.scheduled_at)
+    query = query.order_by(Appointment.scheduled_at.desc())
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -122,6 +122,14 @@ async def confirm_appointment(
     appointment.status = "confirmed"
     await db.commit()
     await db.refresh(appointment)
+
+    # Programar recordatorios automáticos
+    try:
+        from app.services.reminder_service import schedule_appointment_reminders
+        await schedule_appointment_reminders(db, appointment)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"No se pudieron programar recordatorios: {e}")
 
     p_result = await db.execute(select(PatientProfile).where(PatientProfile.id == appointment.patient_id))
     patient = p_result.scalar_one_or_none()

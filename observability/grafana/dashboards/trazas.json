@@ -1,0 +1,72 @@
+{
+  "uid": "brainmind-trazas",
+  "title": "BrainMind — Trazas",
+  "tags": ["brainmind"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Mapa de servicios",
+      "type": "nodeGraph",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "uid": "tempo" },
+      "targets": [
+        {
+          "queryType": "serviceMap",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Duración de spans por operación (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_milliseconds_bucket{service=\"brainmind-api\"}[1m])) by (le, span_name))",
+          "legendFormat": "{{span_name}} p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Trazas con error",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service=\"brainmind-api\", status_code=\"STATUS_CODE_ERROR\"}[1m]))",
+          "legendFormat": "Spans con error"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Buscar trazas",
+      "type": "traces",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "uid": "tempo" },
+      "targets": [
+        {
+          "queryType": "traceql",
+          "query": "{ resource.service.name=\"brainmind-api\" }",
+          "refId": "A",
+          "tableType": "spans",
+          "limit": 20
+        }
+      ]
+    }
+  ]
+}

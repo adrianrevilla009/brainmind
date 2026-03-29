@@ -219,6 +219,13 @@ class EmailVerificationToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ReminderStatus(str, enum.Enum):
+    pending   = "pending"
+    sent      = "sent"
+    failed    = "failed"
+    cancelled = "cancelled"
+
+
 class AppointmentReminder(Base):
     __tablename__ = "appointment_reminders"
 
@@ -227,7 +234,7 @@ class AppointmentReminder(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     reminder_type: Mapped[str] = mapped_column(String(50), nullable=False)
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
+    status: Mapped[ReminderStatus] = mapped_column(SAEnum(ReminderStatus, name="reminder_status"), default=ReminderStatus.pending)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

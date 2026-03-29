@@ -14,29 +14,19 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24  # 24h
 
     # ── LLM FEATURE FLAG ────────────────────────────────────────────────────────
-    # 'ollama'  → LLM local gratuito, ideal para dev/pre-prod
-    # 'claude'  → Claude API (Anthropic), para producción
     llm_provider: Literal["ollama", "claude"] = "ollama"
-
-    # Ollama (local)
     ollama_base_url: str = "http://ollama:11434"
     ollama_chat_model: str = "mistral:7b"
-    ollama_embed_model: str = "nomic-embed-text"  # 768 dims, gratuito
-
-    # Claude API (solo necesario si llm_provider=claude)
+    ollama_embed_model: str = "nomic-embed-text"
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-5"
 
-    # ── WHISPER FEATURE FLAG ─────────────────────────────────────────────────────
-    # 'local'  → faster-whisper, transcripción en CPU local, gratuito
-    # 'mock'   → devuelve transcript de prueba (para tests sin GPU/CPU pesado)
+    # ── WHISPER ──────────────────────────────────────────────────────────────────
     whisper_mode: Literal["local", "mock"] = "local"
     whisper_model_size: str = "medium"
 
-    # ── QDRANT (RAG vectorial) ────────────────────────────────────────────────────
+    # ── QDRANT ───────────────────────────────────────────────────────────────────
     qdrant_url: str = "http://qdrant:6333"
-
-    # RAG
     rag_top_k: int = 3
     rag_chunk_size: int = 1000
 
@@ -49,13 +39,17 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     from_email: str = "noreply@brainmind.app"
 
-    # Jitsi (videollamada self-hosted)
+    # Jitsi
     jitsi_base_url: str = "http://localhost:8443"
 
     # App
     frontend_url: str = "http://localhost:3000"
     environment: str = "development"
     platform_fee_percent: float = 0.05
+
+    # ── Observabilidad ────────────────────────────────────────────────────────────
+    # OTLP endpoint del otel-collector (gRPC)
+    otel_endpoint: str = "http://otel-collector:4317"
 
     class Config:
         env_file = ".env"

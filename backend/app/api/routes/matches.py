@@ -10,6 +10,46 @@ from app.schemas.schemas import MatchOut, MatchStatusUpdate
 router = APIRouter(prefix="/matches", tags=["matches"])
 
 
+async def _enrich_match(match: Match, db: AsyncSession, include_psychologist: bool = True) -> dict:
+    """Serializa un Match añadiendo el perfil del psicólogo."""
+    match_dict = {
+        "id": match.id,
+        "patient_id": match.patient_id,
+        "psychologist_id": match.psychologist_id,
+        "status": match.status,
+        "compatibility_score": match.compatibility_score,
+        "match_reasons": match.match_reasons or [],
+        "initiated_by": match.initiated_by,
+        "created_at": match.created_at,
+        "psychologist": None,
+    }
+    if include_psychologist:
+        psych_result = await db.execute(
+            select(PsychologistProfile).where(PsychologistProfile.id == match.psychologist_id)
+        )
+        psych_profile = psych_result.scalar_one_or_none()
+        if psych_profile:
+            match_dict["psychologist"] = {
+                "id": str(psych_profile.id),
+                "full_name": psych_profile.full_name,
+                "bio": psych_profile.bio,
+                "specializations": psych_profile.specializations or [],
+                "approaches": psych_profile.approaches or [],
+                "languages": psych_profile.languages or [],
+                "session_price_eur": psych_profile.session_price_eur,
+                "session_duration_min": psych_profile.session_duration_min,
+                "city": psych_profile.city,
+                "country": psych_profile.country,
+                "avatar_url": psych_profile.avatar_url,
+                "stripe_onboarded": psych_profile.stripe_onboarded,
+                "ai_summary": psych_profile.ai_summary,
+                "license_verified": psych_profile.license_verified,
+                "accepts_insurance": psych_profile.accepts_insurance,
+                "online_only": psych_profile.online_only,
+            }
+    return match_dict
+
+
 def compute_compatibility(patient: PatientProfile, psychologist: PsychologistProfile) -> tuple[float, list[str]]:
     """Algoritmo de compatibilidad básico para MVP. Score 0-1."""
     score = 0.0
@@ -90,12 +130,12 @@ async def generate_matches(
 
     await db.commit()
 
-    # Ordenar por score descendente
+    # Ordenar por score descendente y enriquecer con datos del psicólogo
     new_matches.sort(key=lambda m: m.compatibility_score or 0, reverse=True)
-    return new_matches[:10]  # máx 10 matches
+    return [await _enrich_match(m, db) for m in new_matches[:10]]
 
 
-@router.get("/my", response_model=list[MatchOut])
+@router.get("/my")
 async def get_my_matches(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -108,10 +148,46 @@ async def get_my_matches(
         if not patient:
             return []
 
+        # JOIN en una sola query para evitar problemas de caché de sesión SQLAlchemy
         result = await db.execute(
-            select(Match).where(Match.patient_id == patient.id)
+            select(Match, PsychologistProfile)
+            .join(PsychologistProfile, PsychologistProfile.id == Match.psychologist_id)
+            .where(Match.patient_id == patient.id)
             .order_by(Match.compatibility_score.desc())
         )
+        rows = result.all()
+
+        enriched = []
+        for match, psych in rows:
+            enriched.append({
+                "id": str(match.id),
+                "patient_id": str(match.patient_id),
+                "psychologist_id": str(match.psychologist_id),
+                "status": match.status,
+                "compatibility_score": match.compatibility_score,
+                "match_reasons": match.match_reasons or [],
+                "initiated_by": match.initiated_by,
+                "created_at": match.created_at,
+                "psychologist": {
+                    "id": str(psych.id),
+                    "full_name": psych.full_name,
+                    "bio": psych.bio,
+                    "specializations": psych.specializations or [],
+                    "approaches": psych.approaches or [],
+                    "languages": psych.languages or [],
+                    "session_price_eur": psych.session_price_eur,
+                    "session_duration_min": psych.session_duration_min,
+                    "city": psych.city,
+                    "country": psych.country,
+                    "avatar_url": psych.avatar_url,
+                    "stripe_onboarded": psych.stripe_onboarded,
+                    "license_verified": psych.license_verified,
+                    "accepts_insurance": psych.accepts_insurance,
+                    "online_only": psych.online_only,
+                } if psych else None,
+            })
+        return enriched
+
     else:
         psych_result = await db.execute(
             select(PsychologistProfile).where(PsychologistProfile.user_id == current_user.id)
@@ -123,33 +199,8 @@ async def get_my_matches(
         result = await db.execute(
             select(Match).where(Match.psychologist_id == psych.id)
         )
-
-    matches = result.scalars().all()
-
-    # Enriquecer con datos del psicólogo para el paciente
-    enriched = []
-    for match in matches:
-        match_dict = {
-            "id": match.id,
-            "patient_id": match.patient_id,
-            "psychologist_id": match.psychologist_id,
-            "status": match.status,
-            "compatibility_score": match.compatibility_score,
-            "match_reasons": match.match_reasons or [],
-            "initiated_by": match.initiated_by,
-            "created_at": match.created_at,
-        }
-
-        if current_user.role == "patient":
-            psych_result = await db.execute(
-                select(PsychologistProfile).where(PsychologistProfile.id == match.psychologist_id)
-            )
-            psych_profile = psych_result.scalar_one_or_none()
-            match_dict["psychologist"] = psych_profile
-
-        enriched.append(match_dict)
-
-    return enriched
+        matches = result.scalars().all()
+        return [await _enrich_match(m, db, include_psychologist=False) for m in matches]
 
 
 @router.patch("/{match_id}/status", response_model=MatchOut)
@@ -167,4 +218,4 @@ async def update_match_status(
     match.status = data.status
     await db.commit()
     await db.refresh(match)
-    return match
+    return await _enrich_match(match, db)
