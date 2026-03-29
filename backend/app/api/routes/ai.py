@@ -219,7 +219,7 @@ async def upload_session_audio(
     }
 
 
-@router.get("/sessions/{appointment_id}/transcript", response_model=TranscriptOut)
+@router.get("/sessions/{appointment_id}/transcript", response_model=TranscriptOut | None)
 async def get_transcript(
     appointment_id: str,
     current_user: User = Depends(get_current_user),
@@ -235,7 +235,7 @@ async def get_transcript(
     )
     transcript = result.scalar_one_or_none()
     if not transcript:
-        raise HTTPException(404, "Transcripción no encontrada para esta cita")
+        return None
     return transcript
 
 
@@ -315,7 +315,7 @@ async def generate_soap(
     return summary
 
 
-@router.get("/sessions/{appointment_id}/summary", response_model=SummaryOut)
+@router.get("/sessions/{appointment_id}/summary", response_model=SummaryOut | None)
 async def get_summary(
     appointment_id: str,
     current_user: User = Depends(get_current_user),
@@ -329,7 +329,7 @@ async def get_summary(
     )
     summary = result.scalar_one_or_none()
     if not summary:
-        raise HTTPException(404, "Resumen no generado aún")
+        return None
     return summary
 
 
@@ -381,7 +381,7 @@ async def create_exercise_plan(
     return plan
 
 
-@router.get("/sessions/{appointment_id}/exercise-plan", response_model=ExercisePlanOut)
+@router.get("/sessions/{appointment_id}/exercise-plan", response_model=ExercisePlanOut | None)
 async def get_exercise_plan(
     appointment_id: str,
     current_user: User = Depends(get_current_user),
@@ -395,7 +395,7 @@ async def get_exercise_plan(
     )
     plan = result.scalar_one_or_none()
     if not plan:
-        raise HTTPException(404, "Plan de ejercicios no generado aún")
+        return None
     return plan
 
 

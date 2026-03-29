@@ -64,7 +64,7 @@ export default function VideoPage() {
     onSuccess: () => {
       if (progressRef.current) clearInterval(progressRef.current)
       setUploadProgress(100)
-      setTimeout(() => router.push(`/dashboard/session/${appointmentId}`), 800)
+      setTimeout(() => router.push(`/dashboard/session/${appointmentId}?from=upload`), 800)
     },
   })
 

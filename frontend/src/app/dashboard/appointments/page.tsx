@@ -239,9 +239,17 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
             <label className="label">Psicólogo</label>
             <select className="input" value={matchId} onChange={e => setMatchId(e.target.value)} required>
               <option value="">Selecciona un psicólogo</option>
-              {accepted.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.psychologist?.full_name || 'Psicólogo'}</option>
-              ))}
+              {accepted.map((m: any) => {
+                const p = m.psychologist
+                const name = p?.full_name || 'Psicólogo'
+                const spec = p?.specializations?.[0] || p?.approaches?.[0] || ''
+                const price = p?.session_price_eur ? `· ${(p.session_price_eur / 100).toFixed(0)}€` : ''
+                return (
+                  <option key={m.id} value={m.id}>
+                    {name}{spec ? ` — ${spec}` : ''}{price}
+                  </option>
+                )
+              })}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
