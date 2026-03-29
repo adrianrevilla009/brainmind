@@ -74,18 +74,22 @@ export default function AppointmentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-20 text-gray-400 text-lg">Cargando...</div>
+        <div className="space-y-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="skeleton h-28 w-full" style={{ animationDelay: `${i*80}ms` }} />
+          ))}
+        </div>
       ) : appointments.length === 0 ? (
-        <div className="card p-20 text-center">
+        <div className="card p-20 text-center animate-fade-in-up">
           <Calendar size={56} className="text-gray-200 mx-auto mb-5" />
           <p className="text-lg text-gray-500">No hay citas que mostrar</p>
         </div>
       ) : (
         <div className="space-y-8">
           {upcoming.length > 0 && (
-            <section>
+            <section className="animate-fade-in-up">
               <p className="section-title">Próximas</p>
-              <div className="space-y-4">
+              <div className="space-y-4 stagger-children">
                 {upcoming.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role}
                     onConfirm={() => confirm.mutate(a.id)}
@@ -95,9 +99,9 @@ export default function AppointmentsPage() {
             </section>
           )}
           {past.length > 0 && (
-            <section>
+            <section className="animate-fade-in-up">
               <p className="section-title">Historial</p>
-              <div className="space-y-4">
+              <div className="space-y-4 stagger-children">
                 {past.map((a: any) => (
                   <AppointmentCard key={a.id} appointment={a} role={role} past />
                 ))}

@@ -22,7 +22,14 @@ export default function LoginPage() {
       setAuth(res.data.access_token, res.data.role, res.data.user_id)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Credenciales incorrectas')
+      const status = err.response?.status
+      const detail = err.response?.data?.detail || 'Credenciales incorrectas'
+      if (status === 403) {
+        // Email no verificado — guardar token si viene en la respuesta y redirigir
+        router.push('/verify-email')
+        return
+      }
+      setError(detail)
     } finally {
       setLoading(false)
     }

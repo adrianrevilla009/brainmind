@@ -36,6 +36,7 @@ export const authApi = {
     return api.post('/auth/login', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   me: () => api.get('/auth/me'),
+  resendVerification: () => api.post('/auth/resend-verification'),
 }
 
 export const profilesApi = {

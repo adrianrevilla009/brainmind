@@ -73,14 +73,16 @@ services:
     image: ollama/ollama:latest
     container_name: brainmind_ollama_init
     restart: "no"
-    profiles: ["init"]
+    # Sin profiles: se ejecuta siempre con docker compose up
+    # restart: no garantiza que solo corra una vez por arranque
     depends_on:
       ollama:
         condition: service_healthy
     entrypoint: >
       sh -c "
-        OLLAMA_HOST=http://ollama:11434 ollama pull mistral:7b &&
-        OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text &&
+        echo 'Comprobando modelos Ollama...' &&
+        OLLAMA_HOST=http://ollama:11434 ollama list | grep -q 'mistral:7b' || OLLAMA_HOST=http://ollama:11434 ollama pull mistral:7b &&
+        OLLAMA_HOST=http://ollama:11434 ollama list | grep -q 'nomic-embed-text' || OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text &&
         echo 'Modelos OK'
       "
     volumes:
@@ -208,6 +210,12 @@ services:
       dockerfile: Dockerfile
     container_name: brainmind_api
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     environment:
       DATABASE_URL: postgresql://brainmind:${POSTGRES_PASSWORD:-brainmind_dev_password}@postgres:5432/brainmind
       REDIS_URL: redis://redis:6379
@@ -221,10 +229,11 @@ services:
       QDRANT_URL: http://qdrant:6333
       JITSI_BASE_URL: ${JITSI_BASE_URL:-http://localhost:8443}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OTEL_ENDPOINT: http://otel-collector:4317
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FRONTEND_URL: http://localhost:3000
-      ENVIRONMENT: development
     ports:
       - "8000:8000"
     depends_on:
@@ -236,6 +245,8 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
     volumes:
       - ./backend:/app
       - uploads_data:/app/uploads
@@ -259,6 +270,131 @@ services:
       - /app/node_modules
       - /app/.next
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OBSERVABILIDAD — Prometheus · Loki · Tempo · Grafana · OTel Collector
+  # Acceso Grafana: http://localhost:3001  (admin / brainmind)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ── OpenTelemetry Collector — recibe trazas del backend ──────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.104.0
+    container_name: brainmind_otel
+    restart: unless-stopped
+    command: ["--config=/etc/otel/otel-config.yml"]
+    volumes:
+      - ./observability/otel-collector/otel-config.yml:/etc/otel/otel-config.yml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Métricas Prometheus derivadas de trazas
+    depends_on:
+      - tempo
+
+  # ── Prometheus — scraping y almacenamiento de métricas ────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: brainmind_prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-remote-write-receiver
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  # ── Loki — agregación de logs ─────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: brainmind_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    user: "0"   # root para evitar permission denied en el volumen
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  # ── Promtail — agente que envía logs de contenedores a Loki ──────────────────
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: brainmind_promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+
+  # ── Tempo — almacenamiento de trazas distribuidas ─────────────────────────────
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: brainmind_tempo
+    restart: unless-stopped
+    command: -config.file=/etc/tempo/tempo-config.yml
+    volumes:
+      - ./observability/tempo/tempo-config.yml:/etc/tempo/tempo-config.yml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP (Grafana datasource)
+      - "4316:4317"   # OTLP gRPC interno (no exponer al host)
+
+  # ── PostgreSQL Exporter — métricas de la BD para Prometheus ──────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: brainmind_pg_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://brainmind:${POSTGRES_PASSWORD:-brainmind_dev_password}@postgres:5432/brainmind?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Redis Exporter — métricas de Redis para Prometheus ───────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: brainmind_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+
+  # ── Grafana — dashboards visuales ────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: brainmind_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: brainmind
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3001
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor traceToMetrics
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
 volumes:
   postgres_data:
   redis_data:
@@ -271,6 +407,11 @@ volumes:
   jitsi_prosody_plugins:
   jitsi_jicofo_config:
   jitsi_jvb_config:
+  # Observabilidad
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
 
 networks:
   meet.jitsi:

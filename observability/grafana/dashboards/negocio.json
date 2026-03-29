@@ -1,0 +1,120 @@
+{
+  "uid": "brainmind-negocio",
+  "title": "BrainMind — Negocio",
+  "tags": ["brainmind"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Usuarios totales",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "mappings": [],
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "targets": [
+        { "expr": "brainmind_users_total", "legendFormat": "Usuarios" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Nuevos usuarios (7d)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } }
+      },
+      "targets": [
+        { "expr": "brainmind_new_users_7d", "legendFormat": "Nuevos 7d" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Citas totales",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } }
+      },
+      "targets": [
+        { "expr": "brainmind_appointments_total", "legendFormat": "Citas" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Recordatorios fallidos",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "brainmind_reminders_failed_total", "legendFormat": "Fallidos" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Citas por estado",
+      "type": "piechart",
+      "gridPos": { "h": 10, "w": 8, "x": 0, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": { "defaults": {} },
+      "targets": [
+        { "expr": "brainmind_appointments_by_status{status=\"pending\"}", "legendFormat": "Pendientes" },
+        { "expr": "brainmind_appointments_by_status{status=\"confirmed\"}", "legendFormat": "Confirmadas" },
+        { "expr": "brainmind_appointments_by_status{status=\"completed\"}", "legendFormat": "Completadas" },
+        { "expr": "brainmind_appointments_by_status{status=\"cancelled\"}", "legendFormat": "Canceladas" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Citas completadas por día",
+      "type": "barchart",
+      "gridPos": { "h": 10, "w": 16, "x": 8, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "purple" } }
+      },
+      "targets": [
+        {
+          "expr": "increase(brainmind_appointments_completed_total[1d])",
+          "legendFormat": "Completadas"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Recordatorios — estado acumulado",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 8 } }
+      },
+      "targets": [
+        { "expr": "brainmind_reminders_pending_total", "legendFormat": "Pendientes" },
+        { "expr": "brainmind_reminders_sent_total", "legendFormat": "Enviados" },
+        { "expr": "brainmind_reminders_failed_total", "legendFormat": "Fallidos" }
+      ]
+    }
+  ]
+}

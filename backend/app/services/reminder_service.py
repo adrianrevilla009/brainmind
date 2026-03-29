@@ -32,7 +32,7 @@ async def schedule_appointment_reminders(
     Crea los recordatorios pendientes al confirmar una cita.
     Se llama desde el endpoint /appointments/{id}/confirm.
     """
-    from app.models.user import AppointmentReminder  # evitar import circular
+    from app.models.user import AppointmentReminder, ReminderStatus  # evitar import circular
 
     scheduled = appointment.scheduled_at
 
