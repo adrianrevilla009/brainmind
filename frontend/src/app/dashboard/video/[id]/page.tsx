@@ -7,7 +7,7 @@ import { useAuthStore } from '@/lib/store'
 import {
   Mic, Square, CheckCircle, ArrowLeft,
   Loader2, Brain, ExternalLink, Video,
-  Upload, SkipForward, Clock
+  Upload, SkipForward, Clock, AlertCircle, ShieldAlert
 } from 'lucide-react'
 
 type Step = 'pre' | 'in-session' | 'uploading' | 'done'
@@ -28,6 +28,7 @@ export default function VideoPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [recSeconds, setRecSeconds] = useState(0)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const mediaRef  = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
@@ -66,9 +67,16 @@ export default function VideoPage() {
       setUploadProgress(100)
       setTimeout(() => router.push(`/dashboard/session/${appointmentId}?from=upload`), 800)
     },
+    onError: (err: any) => {
+      if (progressRef.current) clearInterval(progressRef.current)
+      const detail = err?.response?.data?.detail || 'Error al subir el audio'
+      setUploadError(detail)
+      setStep('in-session')   // volver al paso de grabación para que vea el error
+    },
   })
 
   const startRecording = async () => {
+    setUploadError(null)  // limpiar error previo al reintentar
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
@@ -259,6 +267,28 @@ export default function VideoPage() {
             </div>
           )}
         </div>
+
+        {/* Error de consentimiento u otro error de subida */}
+        {uploadError && (
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4 mb-2">
+            <ShieldAlert size={18} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-red-700">No se pudo subir el audio</p>
+              <p className="text-sm text-red-600 mt-0.5">{uploadError}</p>
+              {uploadError.toLowerCase().includes('consentimiento') && (
+                <p className="text-xs text-red-500 mt-2">
+                  El paciente debe firmar el consentimiento de transcripción en su perfil antes de poder grabar la sesión.
+                </p>
+              )}
+              <button
+                onClick={() => setUploadError(null)}
+                className="text-xs text-red-600 underline mt-2 font-semibold"
+              >
+                Continuar sin audio →
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Botones de acción */}
         <div className="space-y-3">

@@ -1,11 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { appointmentsApi, matchesApi } from '@/lib/api'
+import { appointmentsApi, matchesApi, reviewsApi } from '@/lib/api'
 import { formatTime } from '@/lib/utils'
 import { useAuthStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
-import { Calendar, Clock, Video, Plus, X, Check, Brain, Dumbbell, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, Video, Plus, X, Check, Brain, Dumbbell, CheckCircle, Star } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
   pending:   'bg-amber-100 text-amber-700',
@@ -23,10 +23,17 @@ export default function AppointmentsPage() {
   const role = useAuthStore(s => s.role)
   const [showNewModal, setShowNewModal] = useState(false)
   const [filter, setFilter] = useState('')
+  const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null)
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ['appointments', filter],
     queryFn: () => appointmentsApi.getMyAppointments(filter || undefined).then(r => r.data),
+  })
+
+  const { data: pendingReviews = [] } = useQuery({
+    queryKey: ['pending-reviews'],
+    queryFn: () => role === 'patient' ? reviewsApi.getPending().then(r => r.data) : Promise.resolve([]),
+    enabled: role === 'patient',
   })
 
   const confirm = useMutation({
@@ -103,7 +110,9 @@ export default function AppointmentsPage() {
               <p className="section-title">Historial</p>
               <div className="space-y-4 stagger-children">
                 {past.map((a: any) => (
-                  <AppointmentCard key={a.id} appointment={a} role={role} past />
+                  <AppointmentCard key={a.id} appointment={a} role={role} past
+                    pendingReviewIds={pendingReviews.map((r: any) => r.appointment_id)}
+                    onReview={(id: string) => setReviewAppointmentId(id)} />
                 ))}
               </div>
             </section>
@@ -112,11 +121,21 @@ export default function AppointmentsPage() {
       )}
 
       {showNewModal && <NewAppointmentModal onClose={() => setShowNewModal(false)} />}
+      {reviewAppointmentId && (
+        <ReviewModal
+          appointmentId={reviewAppointmentId}
+          onClose={() => {
+            setReviewAppointmentId(null)
+            qc.invalidateQueries({ queryKey: ['pending-reviews'] })
+            qc.invalidateQueries({ queryKey: ['appointments'] })
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function AppointmentCard({ appointment: a, role, onConfirm, onCancel, past }: any) {
+function AppointmentCard({ appointment: a, role, onConfirm, onCancel, past, pendingReviewIds = [], onReview }: any) {
   const router = useRouter()
   const qc     = useQueryClient()
 
@@ -192,6 +211,12 @@ function AppointmentCard({ appointment: a, role, onConfirm, onCancel, past }: an
             <button onClick={() => router.push(`/dashboard/exercises/${a.id}`)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700">
               <Dumbbell size={15} /> Mis ejercicios
+            </button>
+          )}
+          {a.status === 'completed' && role === 'patient' && pendingReviewIds.includes(a.id) && (
+            <button onClick={() => onReview(a.id)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600">
+              <Star size={15} /> Dejar reseña
             </button>
           )}
         </div>
@@ -274,6 +299,123 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function ReviewModal({ appointmentId, onClose }: { appointmentId: string; onClose: () => void }) {
+  const [rating, setRating]       = useState(0)
+  const [hovered, setHovered]     = useState(0)
+  const [comment, setComment]     = useState('')
+  const [anonymous, setAnonymous] = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const [done, setDone]           = useState(false)
+
+  const handleSubmit = async () => {
+    if (rating === 0) { setError('Selecciona una valoración'); return }
+    setLoading(true); setError('')
+    try {
+      await reviewsApi.create({
+        appointment_id: appointmentId,
+        rating,
+        comment: comment.trim() || undefined,
+        is_anonymous: anonymous,
+      })
+      setDone(true)
+      setTimeout(onClose, 1500)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error al publicar la reseña')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+        {done ? (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={32} className="text-green-600" />
+            </div>
+            <p className="text-lg font-bold text-gray-900">¡Gracias por tu reseña!</p>
+            <p className="text-sm text-gray-500 mt-1">Tu valoración ayuda a otros pacientes</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Valorar sesión</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={22} /></button>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200 mb-4">{error}</div>
+            )}
+
+            {/* Estrellas */}
+            <div className="flex justify-center gap-2 mb-6">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onMouseEnter={() => setHovered(n)}
+                  onMouseLeave={() => setHovered(0)}
+                  onClick={() => setRating(n)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    size={36}
+                    className={`transition-colors ${
+                      n <= (hovered || rating)
+                        ? 'text-amber-400 fill-amber-400'
+                        : 'text-gray-200'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <p className="text-center text-sm text-gray-500 mb-6">
+              {rating === 0 ? 'Toca una estrella para valorar' :
+               rating === 1 ? 'Muy mala experiencia' :
+               rating === 2 ? 'Mala experiencia' :
+               rating === 3 ? 'Regular' :
+               rating === 4 ? 'Buena experiencia' : '¡Excelente experiencia!'}
+            </p>
+
+            {/* Comentario */}
+            <div className="mb-4">
+              <label className="label">Comentario (opcional)</label>
+              <textarea
+                className="input resize-none"
+                rows={3}
+                placeholder="Cuéntanos tu experiencia con el psicólogo..."
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                maxLength={1000}
+              />
+              <p className="text-xs text-gray-400 mt-1 text-right">{comment.length}/1000</p>
+            </div>
+
+            {/* Anónimo */}
+            <label className="flex items-center gap-3 cursor-pointer mb-6 select-none">
+              <div
+                onClick={() => setAnonymous(!anonymous)}
+                className={`w-10 h-6 rounded-full transition-colors relative ${anonymous ? 'bg-brand-600' : 'bg-gray-200'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${anonymous ? 'translate-x-5' : 'translate-x-1'}`} />
+              </div>
+              <span className="text-sm text-gray-600">Publicar de forma anónima</span>
+            </label>
+
+            <div className="flex gap-3">
+              <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={handleSubmit} disabled={loading || rating === 0} className="btn-primary flex-1 flex justify-center">
+                {loading ? 'Publicando...' : 'Publicar reseña'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

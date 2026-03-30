@@ -131,3 +131,37 @@ export const rgpdApi = {
   getRequests: () => api.get('/rgpd/requests'),
   deleteAccount: () => api.delete('/rgpd/delete-account'),
 }
+
+// ── Iteración 6 ──────────────────────────────────────────────────────────────
+
+export const chatApi = {
+  getConversations: () => api.get('/chat/conversations'),
+  getMessages:      (matchId: string, limit = 50) =>
+    api.get(`/chat/${matchId}/messages`, { params: { limit } }),
+  sendMessage:      (matchId: string, content: string) =>
+    api.post(`/chat/${matchId}/messages`, { content }),
+}
+
+export const reviewsApi = {
+  create:             (data: { appointment_id: string; rating: number; comment?: string; is_anonymous?: boolean }) =>
+    api.post('/reviews/', data),
+  getByPsychologist:  (id: string) => api.get(`/reviews/psychologist/${id}`),
+  getByAppointment:   (appointmentId: string) => api.get(`/reviews/appointment/${appointmentId}`),
+  getPending:         () => api.get('/reviews/my-pending'),
+}
+
+export const subscriptionApi = {
+  getPlans:       () => api.get('/subscription/plans'),
+  getStatus:      () => api.get('/subscription/status'),
+  createCheckout: (plan: string) =>
+    api.post('/subscription/create-checkout', null, { params: { plan } }),
+  cancel:         () => api.post('/subscription/cancel'),
+}
+
+export const pushApi = {
+  getVapidKey: () => api.get('/push/vapid-public-key'),
+  subscribe:   (data: { endpoint: string; p256dh: string; auth: string; user_agent?: string }) =>
+    api.post('/push/subscribe', data),
+  unsubscribe: (endpoint: string) =>
+    api.delete('/push/unsubscribe', { params: { endpoint } }),
+}
