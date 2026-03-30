@@ -1,174 +1,234 @@
 'use client'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/lib/store'
-import { appointmentsApi, matchesApi } from '@/lib/api'
-import { formatDateTime, formatPrice } from '@/lib/utils'
+import { appointmentsApi, matchesApi, analyticsApi } from '@/lib/api'
 import Link from 'next/link'
-import { Calendar, Users, ArrowRight, Clock, Video } from 'lucide-react'
+import {
+  Calendar, Users, ArrowRight, Clock, TrendingUp,
+  MessageSquare, Star, Activity, CheckCircle, AlertCircle
+} from 'lucide-react'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
-function StatCard({ label, value, sub, color, icon }: {
-  label: string; value: string | number; sub?: string; color: string; icon: React.ReactNode
+function StatCard({ label, value, delta, color, icon, href }: {
+  label: string; value: string | number; delta?: string
+  color: string; icon: React.ReactNode; href?: string
 }) {
-  return (
-    <div className="card p-7 card-hover animate-fade-in-up">
-      <div className="flex items-start justify-between mb-4">
-        <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{label}</p>
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${color.replace('text-', 'bg-').replace('600', '100').replace('700', '100')}`}>
+  const content = (
+    <div className="stat-card card-hover h-full">
+      <div className="flex items-center justify-between">
+        <p className="stat-label">{label}</p>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${color}`}>
           {icon}
         </div>
       </div>
-      <p className={`text-5xl font-bold mt-1 ${color}`}>{value}</p>
-      {sub && <p className="text-sm text-gray-400 mt-2">{sub}</p>}
+      <p className="stat-value">{value}</p>
+      {delta && <p className="stat-delta-up text-xs"><TrendingUp size={11} />{delta}</p>}
     </div>
+  )
+  return href
+    ? <Link href={href} className="block h-full">{content}</Link>
+    : <div className="h-full">{content}</div>
+}
+
+function AppointmentRow({ a, role }: { a: any; role: string | null }) {
+  const statusStyle: Record<string, string> = {
+    pending:   'badge-amber',
+    confirmed: 'badge-blue',
+    completed: 'badge-green',
+    cancelled: 'badge-gray',
+  }
+  const statusLabel: Record<string, string> = {
+    pending: 'Pendiente', confirmed: 'Confirmada',
+    completed: 'Completada', cancelled: 'Cancelada',
+  }
+  return (
+    <Link
+      href={`/dashboard/appointments`}
+      className="flex items-center gap-4 px-5 py-3.5 hover:bg-clinical-50 transition-colors border-b border-clinical-50 last:border-b-0"
+    >
+      <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+        <Calendar size={16} className="text-brand-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-clinical-900">
+          {format(new Date(a.scheduled_at), "EEEE d 'de' MMMM", { locale: es })}
+        </p>
+        <p className="text-xs text-clinical-400 mt-0.5">
+          {format(new Date(a.scheduled_at), 'HH:mm')} · {a.duration_min} min
+        </p>
+      </div>
+      <span className={statusStyle[a.status] || 'badge-gray'}>{statusLabel[a.status]}</span>
+    </Link>
   )
 }
 
 export default function DashboardPage() {
-  const role = useAuthStore((s) => s.role)
+  const role = useAuthStore(s => s.role)
 
-  const { data: appointments } = useQuery({
+  const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
-    queryFn: () => appointmentsApi.getMyAppointments().then((r) => r.data),
+    queryFn: () => appointmentsApi.getMyAppointments().then(r => r.data),
   })
-
-  const { data: matches } = useQuery({
+  const { data: matches = [] } = useQuery({
     queryKey: ['matches'],
-    queryFn: () => matchesApi.getMyMatches().then((r) => r.data),
+    queryFn: () => matchesApi.getMyMatches().then(r => r.data),
+  })
+  const { data: progress } = useQuery({
+    queryKey: ['progress'],
+    queryFn: () => analyticsApi.myProgress().then(r => r.data),
   })
 
-  const upcoming = (appointments || [])
-    .filter((a: any) => new Date(a.scheduled_at) > new Date() && a.status !== 'cancelled')
-    .slice(0, 3)
+  const upcoming = (appointments as any[])
+    .filter(a => new Date(a.scheduled_at) > new Date() && a.status !== 'cancelled')
+    .slice(0, 5)
+  const accepted = (matches as any[]).filter(m => m.status === 'accepted')
+  const completed = (appointments as any[]).filter(a => a.status === 'completed')
+  const pending   = (appointments as any[]).filter(a => a.status === 'pending')
 
-  const acceptedMatches = (matches || []).filter((m: any) => m.status === 'accepted')
+  const greeting = () => {
+    const h = new Date().getHours()
+    if (h < 13) return 'Buenos días'
+    if (h < 20) return 'Buenas tardes'
+    return 'Buenas noches'
+  }
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title" style={{ fontFamily: 'var(--font-serif)' }}>
-          {role === 'psychologist' ? 'Tu consulta' : 'Tu espacio BrainMind'}
-        </h1>
-        <p className="page-subtitle">
-          {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
+    <div className="space-y-8 anim-slide-up">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-clinical-900">
+            {greeting()} 👋
+          </h1>
+          <p className="text-clinical-500 mt-1 text-sm">
+            {format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
+          </p>
+        </div>
+        {upcoming.length > 0 && (
+          <div className="card-clinical px-4 py-3 flex items-center gap-3">
+            <AlertCircle size={16} className="text-white/80" />
+            <div>
+              <p className="text-xs text-white/70 font-medium">Próxima cita</p>
+              <p className="text-white font-bold text-sm">
+                {format(new Date(upcoming[0].scheduled_at), "d MMM 'a las' HH:mm", { locale: es })}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger">
         <StatCard
           label="Próximas citas"
           value={upcoming.length}
-          sub="en los próximos días"
-          color="text-brand-600"
-          icon={<Calendar size={20} className="text-brand-600" />}
+          color="bg-brand-100 text-brand-600"
+          icon={<Calendar size={16} />}
+          href="/dashboard/appointments"
         />
         <StatCard
-          label={role === 'psychologist' ? 'Pacientes activos' : 'Psicólogos conectados'}
-          value={acceptedMatches.length}
-          color="text-sage-600"
-          icon={<Users size={20} className="text-sage-600" />}
+          label={role === 'psychologist' ? 'Pacientes activos' : 'Psicólogos'}
+          value={accepted.length}
+          color="bg-emerald-100 text-emerald-600"
+          icon={<Users size={16} />}
+          href={role === 'psychologist' ? '/dashboard/patients' : '/dashboard/matches'}
         />
         <StatCard
-          label="Citas totales"
-          value={(appointments || []).length}
-          color="text-gray-700"
-          icon={<Clock size={20} className="text-gray-500" />}
+          label="Completadas"
+          value={completed.length}
+          color="bg-purple-100 text-purple-600"
+          icon={<CheckCircle size={16} />}
+        />
+        <StatCard
+          label="Pendientes"
+          value={pending.length}
+          color="bg-amber-100 text-amber-600"
+          icon={<Clock size={16} />}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Contenido principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Próximas citas */}
-        <div className="card p-7">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Calendar size={20} className="text-brand-500" />
-              Próximas citas
-            </h2>
-            <Link href="/dashboard/appointments" className="text-sm text-brand-600 hover:underline font-semibold flex items-center gap-1">
-              Ver todas <ArrowRight size={14} />
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <p className="section-label">Próximas citas</p>
+            <Link href="/dashboard/appointments" className="text-xs text-brand-600 font-semibold flex items-center gap-1 hover:underline">
+              Ver todas <ArrowRight size={12} />
             </Link>
           </div>
-
-          {upcoming.length === 0 ? (
-            <div className="text-center py-10">
-              <Clock size={40} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-base text-gray-500">No tienes citas próximas</p>
-              <Link href={role === 'patient' ? '/dashboard/matches' : '/dashboard/appointments'}
-                className="text-sm text-brand-600 hover:underline mt-2 block font-semibold">
-                {role === 'patient' ? 'Busca un psicólogo →' : 'Gestiona tu agenda →'}
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcoming.map((appt: any) => (
-                <div key={appt.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-100 flex items-center justify-center flex-shrink-0">
-                    <Calendar size={20} className="text-brand-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-semibold text-gray-900">Sesión de {appt.duration_min} min</p>
-                    <p className="text-sm text-gray-500">{formatDateTime(appt.scheduled_at)}</p>
-                  </div>
-                  <span className={`badge ${appt.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {appt.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="card overflow-hidden">
+            {upcoming.length === 0 ? (
+              <div className="p-12 text-center">
+                <Calendar size={36} className="text-clinical-200 mx-auto mb-3" />
+                <p className="text-sm text-clinical-400">No hay citas próximas</p>
+                {role === 'patient' && (
+                  <Link href="/dashboard/matches" className="btn-primary btn-sm mt-4 inline-flex">
+                    Encontrar psicólogo
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="stagger">
+                {upcoming.map(a => <AppointmentRow key={a.id} a={a} role={role} />)}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Matches / Pacientes */}
-        <div className="card p-7">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Users size={20} className="text-sage-500" />
-              {role === 'psychologist' ? 'Solicitudes pendientes' : 'Tus psicólogos'}
-            </h2>
-            <Link href={role === 'patient' ? '/dashboard/matches' : '/dashboard/patients'}
-              className="text-sm text-brand-600 hover:underline font-semibold flex items-center gap-1">
-              Ver todos <ArrowRight size={14} />
+        {/* Accesos rápidos */}
+        <div className="space-y-4">
+          <p className="section-label">Accesos rápidos</p>
+          <div className="space-y-3 stagger">
+            <Link href="/dashboard/chat" className="card-hover p-4 flex items-center gap-4 anim-slide-up">
+              <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
+                <MessageSquare size={16} className="text-cyan-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-clinical-900">Mensajes</p>
+                <p className="text-xs text-clinical-400">Chat entre sesiones</p>
+              </div>
+              <ArrowRight size={14} className="text-clinical-300" />
             </Link>
-          </div>
 
-          {(matches || []).length === 0 ? (
-            <div className="text-center py-10">
-              <Users size={40} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-base text-gray-500">
-                {role === 'patient' ? 'Aún no tienes psicólogos asignados' : 'No hay solicitudes pendientes'}
-              </p>
-              {role === 'patient' && (
-                <Link href="/dashboard/matches" className="text-sm text-brand-600 hover:underline mt-2 block font-semibold">
-                  Generar matches →
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(matches || []).slice(0, 4).map((match: any) => (
-                <div key={match.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
-                  <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center flex-shrink-0 text-sage-700 font-bold text-lg">
-                    {match.psychologist?.full_name?.[0] || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-semibold text-gray-900 truncate">
-                      {match.psychologist?.full_name || 'Psicólogo'}
-                    </p>
-                    {match.compatibility_score && (
-                      <p className="text-sm text-gray-500">{Math.round(match.compatibility_score * 100)}% compatibilidad</p>
-                    )}
-                  </div>
-                  <span className={`badge ${
-                    match.status === 'accepted' ? 'bg-green-100 text-green-700'
-                    : match.status === 'pending' ? 'bg-amber-100 text-amber-700'
-                    : 'bg-red-100 text-red-700'
-                  }`}>
-                    {match.status === 'accepted' ? 'Activo' : match.status === 'pending' ? 'Pendiente' : 'Rechazado'}
-                  </span>
+            <Link href="/dashboard/analytics" className="card-hover p-4 flex items-center gap-4 anim-slide-up">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                <Activity size={16} className="text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-clinical-900">Analytics</p>
+                <p className="text-xs text-clinical-400">Tu evolución</p>
+              </div>
+              <ArrowRight size={14} className="text-clinical-300" />
+            </Link>
+
+            {role === 'psychologist' && (
+              <Link href="/dashboard/reviews" className="card-hover p-4 flex items-center gap-4 anim-slide-up">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <Star size={16} className="text-amber-600" />
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-clinical-900">Reseñas</p>
+                  <p className="text-xs text-clinical-400">Valoraciones de pacientes</p>
+                </div>
+                <ArrowRight size={14} className="text-clinical-300" />
+              </Link>
+            )}
+
+            {role === 'psychologist' && (
+              <Link href="/dashboard/subscription" className="card-clinical p-4 flex items-center gap-4 anim-slide-up">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <TrendingUp size={16} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white">Suscripción</p>
+                  <p className="text-xs text-white/70">Gestionar plan</p>
+                </div>
+                <ArrowRight size={14} className="text-white/60" />
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -268,3 +268,73 @@ class RgpdRequest(Base):
     export_url: Mapped[str | None] = mapped_column(Text)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+# ═══════════════════════════════════════════════════════════════════
+# Iteración 6 — Chat, Push, Subscriptions, Reviews
+# ═══════════════════════════════════════════════════════════════════
+
+class SubscriptionPlan(str, enum.Enum):
+    free   = "free"
+    pro    = "pro"
+    clinic = "clinic"
+
+class SubscriptionStatus(str, enum.Enum):
+    active    = "active"
+    cancelled = "cancelled"
+    past_due  = "past_due"
+    trialing  = "trialing"
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id         : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    match_id   : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"))
+    sender_id  : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id",   ondelete="CASCADE"))
+    content    : Mapped[str]       = mapped_column(Text, nullable=False)
+    msg_type   : Mapped[str]       = mapped_column(String(20), default="text")
+    read_at    : Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at : Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id         : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    endpoint   : Mapped[str]       = mapped_column(Text, unique=True, nullable=False)
+    p256dh     : Mapped[str]       = mapped_column(Text, nullable=False)
+    auth       : Mapped[str]       = mapped_column(Text, nullable=False)
+    user_agent : Mapped[str | None]= mapped_column(Text)
+    created_at : Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id                     : Mapped[uuid.UUID]          = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id        : Mapped[uuid.UUID]          = mapped_column(UUID(as_uuid=True), ForeignKey("psychologist_profiles.id", ondelete="CASCADE"))
+    plan                   : Mapped[SubscriptionPlan]   = mapped_column(SAEnum(SubscriptionPlan,   name="subscription_plan"),   default=SubscriptionPlan.free)
+    status                 : Mapped[SubscriptionStatus] = mapped_column(SAEnum(SubscriptionStatus, name="subscription_status"), default=SubscriptionStatus.active)
+    stripe_subscription_id : Mapped[str | None]         = mapped_column(String(255), unique=True)
+    stripe_customer_id     : Mapped[str | None]         = mapped_column(String(255))
+    current_period_start   : Mapped[datetime | None]    = mapped_column(DateTime(timezone=True))
+    current_period_end     : Mapped[datetime | None]    = mapped_column(DateTime(timezone=True))
+    cancel_at_period_end   : Mapped[bool]               = mapped_column(Boolean, default=False)
+    trial_end              : Mapped[datetime | None]    = mapped_column(DateTime(timezone=True))
+    created_at             : Mapped[datetime]           = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at             : Mapped[datetime]           = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id              : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id      : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patient_profiles.id",      ondelete="CASCADE"))
+    psychologist_id : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psychologist_profiles.id", ondelete="CASCADE"))
+    appointment_id  : Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id",          ondelete="CASCADE"), unique=True)
+    rating          : Mapped[int]       = mapped_column(Integer, nullable=False)
+    comment         : Mapped[str | None]= mapped_column(Text)
+    is_anonymous    : Mapped[bool]      = mapped_column(Boolean, default=False)
+    is_visible      : Mapped[bool]      = mapped_column(Boolean, default=True)
+    created_at      : Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
