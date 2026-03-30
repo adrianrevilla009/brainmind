@@ -80,6 +80,60 @@ async def create_review(
     return {"id": str(review.id), "rating": review.rating, "message": "Reseña publicada. ¡Gracias!"}
 
 
+@router.get("/appointment/{appointment_id}")
+async def get_review_for_appointment(
+    appointment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reseña de una cita concreta. Accesible por el psicólogo de la cita o el paciente autor."""
+    # Verificar que la cita existe
+    a = await db.execute(select(Appointment).where(Appointment.id == appointment_id))
+    appointment = a.scalar_one_or_none()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    # Verificar permisos: psicólogo de la cita o paciente de la cita
+    if current_user.role == "psychologist":
+        ps = await db.execute(
+            select(PsychologistProfile).where(PsychologistProfile.user_id == current_user.id)
+        )
+        psych = ps.scalar_one_or_none()
+        if not psych or psych.id != appointment.psychologist_id:
+            raise HTTPException(status_code=403, detail="No tienes acceso a esta cita")
+    elif current_user.role == "patient":
+        p = await db.execute(
+            select(PatientProfile).where(PatientProfile.user_id == current_user.id)
+        )
+        patient = p.scalar_one_or_none()
+        if not patient or patient.id != appointment.patient_id:
+            raise HTTPException(status_code=403, detail="No tienes acceso a esta cita")
+    else:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    # Obtener la reseña
+    r = await db.execute(select(Review).where(Review.appointment_id == appointment_id))
+    review = r.scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Sin reseña para esta cita")
+
+    patient_name = None
+    if not review.is_anonymous:
+        p = await db.execute(select(PatientProfile).where(PatientProfile.id == review.patient_id))
+        patient = p.scalar_one_or_none()
+        if patient:
+            parts = patient.full_name.split()
+            patient_name = parts[0] + (" " + parts[1][0] + "." if len(parts) > 1 else "")
+
+    return {
+        "id":           str(review.id),
+        "rating":       review.rating,
+        "comment":      review.comment,
+        "patient_name": patient_name or "Paciente anónimo",
+        "created_at":   review.created_at.isoformat(),
+    }
+
+
 @router.get("/psychologist/{psychologist_id}")
 async def get_psychologist_reviews(
     psychologist_id: str,

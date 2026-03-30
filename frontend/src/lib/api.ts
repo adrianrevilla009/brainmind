@@ -146,6 +146,7 @@ export const reviewsApi = {
   create:             (data: { appointment_id: string; rating: number; comment?: string; is_anonymous?: boolean }) =>
     api.post('/reviews/', data),
   getByPsychologist:  (id: string) => api.get(`/reviews/psychologist/${id}`),
+  getByAppointment:   (appointmentId: string) => api.get(`/reviews/appointment/${appointmentId}`),
   getPending:         () => api.get('/reviews/my-pending'),
 }
 
